@@ -34,6 +34,7 @@ function changeCategory(catId) {
     fetchTrending();
 }
 
+// 🛠️ 升級版：主排行榜加入安全內嵌播放器
 function renderTrending(videos) {
     const container = document.getElementById('content-area');
     if (!container) return;
@@ -42,10 +43,18 @@ function renderTrending(videos) {
         const votes = voteData[v.id] || 0;
         const views = parseInt(v.statistics?.viewCount || 0);
         const power = Math.floor((views * 0.005) + (votes * 1000));
+        
+        // 💡 關鍵改裝：把當初的 img 標籤換成帶有安全參數的 iframe 播放器
         html += `<div class="cyber-card p-5 md:p-6 rounded-3xl flex flex-row gap-6 items-center group ${i===0?'rank-1':''}">
             <div class="text-3xl font-black text-white/5 w-10 italic font-cyber">#${i+1}</div>
-            <div class="relative w-32 md:w-56 aspect-video flex-shrink-0 overflow-hidden rounded-2xl">
-                <img src="${v.snippet.thumbnails.medium.url}" class="w-full h-full object-cover group-hover:scale-110 transition duration-500">
+            <div class="relative w-32 md:w-56 aspect-video flex-shrink-0 overflow-hidden rounded-2xl bg-black border border-white/5">
+                <iframe 
+                    class="w-full h-full relative z-10" 
+                    src="https://www.youtube.com/embed/${v.id}?origin=https://youtube-ranklist.vercel.app&enablejsapi=1" 
+                    frameborder="0" 
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
+                    allowfullscreen>
+                </iframe>
             </div>
             <div class="flex-grow min-w-0 flex flex-col justify-between py-1 lg:pl-6">
                 <h2 class="text-white font-bold text-sm md:text-xl truncate group-hover:text-red-400 transition">${v.snippet.title}</h2>
@@ -93,22 +102,39 @@ function setupMatch() {
     renderVSCard('vs-right', cachedVideos[r]);
 }
 
+// 🛠️ 升級版：VS 對決小卡也改裝成可以看影片（且不影響原本點擊投票的功能）
 function renderVSCard(id, video) {
     const el = document.getElementById(id);
     const votes = voteData[video.id] || 0;
-    el.innerHTML = `<div class="cyber-card p-6 rounded-[3rem] cursor-pointer text-center group hover:border-red-500 transition-all duration-500">
-        <div class="relative overflow-hidden rounded-[2rem] aspect-video mb-6">
-            <img src="${video.snippet.thumbnails.medium.url}" class="w-full h-full object-cover group-hover:scale-110 transition duration-700">
+    
+    // 💡 這裡一樣把 img 改成播放器，並且把點擊投票的事件綁在字體區塊或外殼，這樣既能看影片又能投票！
+    el.innerHTML = `<div class="cyber-card p-6 rounded-[3rem] text-center group transition-all duration-500">
+        <div class="relative overflow-hidden rounded-[2rem] aspect-video mb-6 bg-black border border-white/5">
+            <iframe 
+                class="w-full h-full relative z-10" 
+                src="https://www.youtube.com/embed/${video.id}?origin=https://youtube-ranklist.vercel.app&enablejsapi=1" 
+                frameborder="0" 
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
+                allowfullscreen>
+            </iframe>
         </div>
-        <p class="text-white font-black text-lg truncate mb-2">${video.snippet.title}</p>
-        <p class="text-red-500 font-cyber text-2xl font-black italic">${votes} WINS</p>
+        <div class="vote-trigger-zone cursor-pointer hover:text-red-500 transition duration-300">
+            <p class="text-white font-black text-lg truncate mb-2 group-hover:text-red-400 transition">${video.snippet.title}</p>
+            <p class="text-red-500 font-cyber text-2xl font-black italic">${votes} WINS</p>
+            <p class="text-[9px] text-slate-500 font-cyber mt-1">// 點選此文字區塊進行投票</p>
+        </div>
     </div>`;
-    el.onclick = () => {
-        if (!window.fb) return;
-        window.fb.runTransaction(window.fb.ref(window.fb.db, 'global_votes/' + video.id), (curr) => (curr || 0) + 1);
-        el.style.transform = "scale(0.95)";
-        setTimeout(() => { el.style.transform = "scale(1)"; setupMatch(); }, 150);
-    };
+    
+    // 點選字體區進行 Firebase 投票與下一局切換
+    const triggerZone = el.querySelector('.vote-trigger-zone');
+    if (triggerZone) {
+        triggerZone.onclick = (e) => {
+            if (!window.fb) return;
+            window.fb.runTransaction(window.fb.ref(window.fb.db, 'global_votes/' + video.id), (curr) => (curr || 0) + 1);
+            el.style.transform = "scale(0.95)";
+            setTimeout(() => { el.style.transform = "scale(1)"; setupMatch(); }, 150);
+        };
+    }
 }
 
 function initCloudSync() {
@@ -125,7 +151,6 @@ function handleSearch() {
     renderTrending(filtered);
 }
 
-// [開發者標籤邏輯 - 修正版]
 function setupDevLabel() {
     const trigger = document.getElementById('dev-trigger');
     const info = document.getElementById('devInfo');

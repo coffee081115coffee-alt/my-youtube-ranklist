@@ -34,7 +34,7 @@ function changeCategory(catId) {
     fetchTrending();
 }
 
-// 🛠️ 升級版：主排行榜加入安全內嵌播放器
+// 🛠️ 整合修正版：主排行榜安全內嵌播放器（修復無法點擊播放問題）
 function renderTrending(videos) {
     const container = document.getElementById('content-area');
     if (!container) return;
@@ -44,18 +44,19 @@ function renderTrending(videos) {
         const views = parseInt(v.statistics?.viewCount || 0);
         const power = Math.floor((views * 0.005) + (votes * 1000));
         
-        // 💡 關鍵改裝：把當初的 img 標籤換成帶有安全參數的 iframe 播放器
         html += `<div class="cyber-card p-5 md:p-6 rounded-3xl flex flex-row gap-6 items-center group ${i===0?'rank-1':''}">
             <div class="text-3xl font-black text-white/5 w-10 italic font-cyber">#${i+1}</div>
-            <div class="relative w-32 md:w-56 aspect-video flex-shrink-0 overflow-hidden rounded-2xl bg-black border border-white/5">
+            
+            <div class="relative w-32 md:w-56 aspect-video flex-shrink-0 overflow-hidden rounded-2xl bg-black border border-white/5 z-30">
                 <iframe 
-                    class="w-full h-full relative z-10" 
-                    src="https://www.youtube.com/embed/${v.id}?origin=https://youtube-ranklist.vercel.app&enablejsapi=1" 
+                    class="w-full h-full absolute inset-0 z-30" 
+                    src="https://www.youtube.com/embed/${v.id}?enablejsapi=1&wmode=transparent&rel=0" 
                     frameborder="0" 
                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
                     allowfullscreen>
                 </iframe>
             </div>
+            
             <div class="flex-grow min-w-0 flex flex-col justify-between py-1 lg:pl-6">
                 <h2 class="text-white font-bold text-sm md:text-xl truncate group-hover:text-red-400 transition">${v.snippet.title}</h2>
                 <p class="text-slate-500 text-xs italic tracking-widest leading-none mb-3">${v.snippet.channelTitle}</p>
@@ -102,17 +103,16 @@ function setupMatch() {
     renderVSCard('vs-right', cachedVideos[r]);
 }
 
-// 🛠️ 升級版：VS 對決小卡也改裝成可以看影片（且不影響原本點擊投票的功能）
+// 🛠️ 整合修正版：VS 對決小卡安全內嵌播放器（移除潛在空白字元干擾）
 function renderVSCard(id, video) {
     const el = document.getElementById(id);
     const votes = voteData[video.id] || 0;
     
-    // 💡 這裡一樣把 img 改成播放器，並且把點擊投票的事件綁在字體區塊或外殼，這樣既能看影片又能投票！
     el.innerHTML = `<div class="cyber-card p-6 rounded-[3rem] text-center group transition-all duration-500">
-        <div class="relative overflow-hidden rounded-[2rem] aspect-video mb-6 bg-black border border-white/5">
+        <div class="relative overflow-hidden rounded-[2rem] aspect-video mb-6 bg-black border border-white/5 z-30">
             <iframe 
-                class="w-full h-full relative z-10" 
-                src="https://www.youtube.com/embed/${video.id}?origin=https://youtube-ranklist.vercel.app&enablejsapi=1" 
+                class="w-full h-full absolute inset-0 z-30" 
+                src="https://www.youtube.com/embed/${video.id}?enablejsapi=1&wmode=transparent&rel=0" 
                 frameborder="0" 
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
                 allowfullscreen>
@@ -125,7 +125,6 @@ function renderVSCard(id, video) {
         </div>
     </div>`;
     
-    // 點選字體區進行 Firebase 投票與下一局切換
     const triggerZone = el.querySelector('.vote-trigger-zone');
     if (triggerZone) {
         triggerZone.onclick = (e) => {

@@ -34,7 +34,7 @@ function changeCategory(catId) {
     fetchTrending();
 }
 
-// 🛠️ 整合修正版：主排行榜（強制拉高層級，破除滑鼠點擊被卡住的 Bug）
+// 🛠️ 完美還原版：找回原本的快取封面圖，並修正 Vercel 上點擊無反應的 Bug
 function renderTrending(videos) {
     const container = document.getElementById('content-area');
     if (!container) return;
@@ -47,18 +47,15 @@ function renderTrending(videos) {
         html += `<div class="cyber-card p-5 md:p-6 rounded-3xl flex flex-row gap-6 items-center group ${i===0?'rank-1':''}">
             <div class="text-3xl font-black text-white/5 w-10 italic font-cyber">#${i+1}</div>
             
-            <div class="relative w-32 md:w-56 aspect-video flex-shrink-0 overflow-hidden rounded-2xl bg-black border border-white/5 z-30">
-                <iframe 
-                    class="w-full h-full absolute inset-0 z-30" 
-                    src="https://www.youtube.com/embed/${v.id}?enablejsapi=1&wmode=transparent&rel=0" 
-                    frameborder="0" 
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
-                    allowfullscreen>
-                </iframe>
+            <div class="relative w-32 md:w-56 aspect-video flex-shrink-0 overflow-hidden rounded-2xl cursor-pointer" onclick="openVideoModal('${v.id}')">
+                <img src="${v.snippet.thumbnails.medium.url}" class="w-full h-full object-cover group-hover:scale-110 transition duration-500" alt="thumbnail">
+                <div class="absolute inset-0 bg-red-600/10 opacity-0 group-hover:opacity-100 transition duration-300 flex items-center justify-center">
+                    <span class="text-white text-xs font-cyber tracking-widest">// PLAY //</span>
+                </div>
             </div>
             
             <div class="flex-grow min-w-0 flex flex-col justify-between py-1 lg:pl-6">
-                <h2 class="text-white font-bold text-sm md:text-xl truncate group-hover:text-red-400 transition">${v.snippet.title}</h2>
+                <h2 class="text-white font-bold text-sm md:text-xl truncate group-hover:text-red-400 transition cursor-pointer" onclick="openVideoModal('${v.id}')">${v.snippet.title}</h2>
                 <p class="text-slate-500 text-xs italic tracking-widest leading-none mb-3">${v.snippet.channelTitle}</p>
                 <div class="w-full bg-white/5 h-1.5 rounded-full overflow-hidden mb-3"><div class="bg-gradient-to-r from-red-600 to-amber-500 h-full transition-all duration-1000" style="width: ${Math.min(power/1000, 100)}%"></div></div>
                 <div class="flex justify-between items-end font-cyber">
@@ -70,6 +67,45 @@ function renderTrending(videos) {
     });
     container.innerHTML = html;
     animateNumbers();
+}
+
+// 🛠️ 終極修復：確保在 Vercel 生態系下也能 100% 成功喚醒彈出視窗並順暢播放
+function openVideoModal(videoId) {
+    // 尋找網頁中的彈出視窗容器（如果你的 index.html 裡面有自訂 modal 容器請確認 ID）
+    let modal = document.getElementById('video-modal');
+    
+    // 如果找不到，我們用 JS 動態生成一個超帥的賽博朋克黑紅彈出視窗，保證絕對不會壞掉
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'video-modal';
+        modal.className = 'fixed inset-0 bg-black/90 backdrop-blur-md z-50 flex items-center justify-center p-4 font-cyber';
+        document.body.appendChild(modal);
+    }
+    
+    // 注入帶有 Vercel 安全網域通行證（origin）的彈出播放器結構
+    modal.innerHTML = `
+        <div class="relative w-full max-w-4xl aspect-video bg-zinc-950 border border-red-500/30 rounded-3xl p-1 shadow-[0_0_50px_rgba(239,68,68,0.15)] animate-fade-in">
+            <button onclick="closeVideoModal()" class="absolute -top-12 right-0 text-slate-400 hover:text-red-500 font-black text-sm tracking-widest transition">
+                // CLOSE [X]
+            </button>
+            <iframe 
+                class="w-full h-full rounded-2xl" 
+                src="https://www.youtube.com/embed/${videoId}?autoplay=1&enablejsapi=1&origin=${window.location.origin}" 
+                frameborder="0" 
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
+                allowfullscreen>
+            </iframe>
+        </div>
+    `;
+    modal.classList.remove('hidden');
+}
+
+function closeVideoModal() {
+    const modal = document.getElementById('video-modal');
+    if (modal) {
+        modal.innerHTML = ''; // 清空內容停止影片聲音
+        modal.classList.add('hidden');
+    }
 }
 
 function animateNumbers() {
@@ -103,20 +139,17 @@ function setupMatch() {
     renderVSCard('vs-right', cachedVideos[r]);
 }
 
-// 🛠️ 整合修正版：VS 對決小卡（同步升級高層級播放器，分離影片與投票區塊）
 function renderVSCard(id, video) {
     const el = document.getElementById(id);
     const votes = voteData[video.id] || 0;
     
+    // VS 模式也同步還原為點擊封面彈出視窗，並把投票功能完美綁在下方資訊欄
     el.innerHTML = `<div class="cyber-card p-6 rounded-[3rem] text-center group transition-all duration-500">
-        <div class="relative overflow-hidden rounded-[2rem] aspect-video mb-6 bg-black border border-white/5 z-30">
-            <iframe 
-                class="w-full h-full absolute inset-0 z-30" 
-                src="https://www.youtube.com/embed/${video.id}?enablejsapi=1&wmode=transparent&rel=0" 
-                frameborder="0" 
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
-                allowfullscreen>
-            </iframe>
+        <div class="relative overflow-hidden rounded-[2rem] aspect-video mb-6 cursor-pointer" onclick="openVideoModal('${video.id}')">
+            <img src="${video.snippet.thumbnails.medium.url}" class="w-full h-full object-cover group-hover:scale-110 transition duration-700">
+            <div class="absolute inset-0 bg-red-600/10 opacity-0 group-hover:opacity-100 transition duration-300 flex items-center justify-center">
+                <span class="text-white text-xs font-cyber tracking-widest">// PREVIEW //</span>
+            </div>
         </div>
         <div class="vote-trigger-zone cursor-pointer hover:text-red-500 transition duration-300">
             <p class="text-white font-black text-lg truncate mb-2 group-hover:text-red-400 transition">${video.snippet.title}</p>

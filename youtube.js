@@ -34,7 +34,7 @@ function changeCategory(catId) {
     fetchTrending();
 }
 
-// 🛠️ 整合修正版：主排行榜安全內嵌播放器（修復無法點擊播放問題）
+// 🛠️ 整合修正版：主排行榜（強制拉高層級，破除滑鼠點擊被卡住的 Bug）
 function renderTrending(videos) {
     const container = document.getElementById('content-area');
     if (!container) return;
@@ -103,7 +103,7 @@ function setupMatch() {
     renderVSCard('vs-right', cachedVideos[r]);
 }
 
-// 🛠️ 整合修正版：VS 對決小卡安全內嵌播放器（移除潛在空白字元干擾）
+// 🛠️ 整合修正版：VS 對決小卡（同步升級高層級播放器，分離影片與投票區塊）
 function renderVSCard(id, video) {
     const el = document.getElementById(id);
     const votes = voteData[video.id] || 0;

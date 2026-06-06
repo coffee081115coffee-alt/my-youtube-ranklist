@@ -34,7 +34,7 @@ function changeCategory(catId) {
     fetchTrending();
 }
 
-// 🛠️ 完美還原版：找回原本的快取封面圖，並修正 Vercel 上點擊無反應的 Bug
+// 🛠️ 主排行榜：純封面圖秒載入 + 點擊標題或圖片彈出視窗
 function renderTrending(videos) {
     const container = document.getElementById('content-area');
     if (!container) return;
@@ -69,12 +69,9 @@ function renderTrending(videos) {
     animateNumbers();
 }
 
-// 🛠️ 終極修復：確保在 Vercel 生態系下也能 100% 成功喚醒彈出視窗並順暢播放
+// 🛠️ 彈出式視窗：確保跨網域安全播放
 function openVideoModal(videoId) {
-    // 尋找網頁中的彈出視窗容器（如果你的 index.html 裡面有自訂 modal 容器請確認 ID）
     let modal = document.getElementById('video-modal');
-    
-    // 如果找不到，我們用 JS 動態生成一個超帥的賽博朋克黑紅彈出視窗，保證絕對不會壞掉
     if (!modal) {
         modal = document.createElement('div');
         modal.id = 'video-modal';
@@ -82,7 +79,6 @@ function openVideoModal(videoId) {
         document.body.appendChild(modal);
     }
     
-    // 注入帶有 Vercel 安全網域通行證（origin）的彈出播放器結構
     modal.innerHTML = `
         <div class="relative w-full max-w-4xl aspect-video bg-zinc-950 border border-red-500/30 rounded-3xl p-1 shadow-[0_0_50px_rgba(239,68,68,0.15)] animate-fade-in">
             <button onclick="closeVideoModal()" class="absolute -top-12 right-0 text-slate-400 hover:text-red-500 font-black text-sm tracking-widest transition">
@@ -103,7 +99,7 @@ function openVideoModal(videoId) {
 function closeVideoModal() {
     const modal = document.getElementById('video-modal');
     if (modal) {
-        modal.innerHTML = ''; // 清空內容停止影片聲音
+        modal.innerHTML = '';
         modal.classList.add('hidden');
     }
 }
@@ -139,34 +135,32 @@ function setupMatch() {
     renderVSCard('vs-right', cachedVideos[r]);
 }
 
+// 🛠️ VS 模式：完美修復投票機制
 function renderVSCard(id, video) {
     const el = document.getElementById(id);
     const votes = voteData[video.id] || 0;
     
-    // VS 模式也同步還原為點擊封面彈出視窗，並把投票功能完美綁在下方資訊欄
-    el.innerHTML = `<div class="cyber-card p-6 rounded-[3rem] text-center group transition-all duration-500">
-        <div class="relative overflow-hidden rounded-[2rem] aspect-video mb-6 cursor-pointer" onclick="openVideoModal('${video.id}')">
+    // 還原為最原汁原味的整張卡片點擊，但加上阻止冒泡，防止點擊預覽圖片時觸發投票
+    el.innerHTML = `<div class="cyber-card p-6 rounded-[3rem] cursor-pointer text-center group hover:border-red-500 transition-all duration-500">
+        <div class="relative overflow-hidden rounded-[2rem] aspect-video mb-6" onclick="event.stopPropagation(); openVideoModal('${video.id}')">
             <img src="${video.snippet.thumbnails.medium.url}" class="w-full h-full object-cover group-hover:scale-110 transition duration-700">
             <div class="absolute inset-0 bg-red-600/10 opacity-0 group-hover:opacity-100 transition duration-300 flex items-center justify-center">
                 <span class="text-white text-xs font-cyber tracking-widest">// PREVIEW //</span>
             </div>
         </div>
-        <div class="vote-trigger-zone cursor-pointer hover:text-red-500 transition duration-300">
-            <p class="text-white font-black text-lg truncate mb-2 group-hover:text-red-400 transition">${video.snippet.title}</p>
+        <div>
+            <p class="text-white font-black text-lg truncate mb-2">${video.snippet.title}</p>
             <p class="text-red-500 font-cyber text-2xl font-black italic">${votes} WINS</p>
-            <p class="text-[9px] text-slate-500 font-cyber mt-1">// 點選此文字區塊進行投票</p>
         </div>
     </div>`;
     
-    const triggerZone = el.querySelector('.vote-trigger-zone');
-    if (triggerZone) {
-        triggerZone.onclick = (e) => {
-            if (!window.fb) return;
-            window.fb.runTransaction(window.fb.ref(window.fb.db, 'global_votes/' + video.id), (curr) => (curr || 0) + 1);
-            el.style.transform = "scale(0.95)";
-            setTimeout(() => { el.style.transform = "scale(1)"; setupMatch(); }, 150);
-        };
-    }
+    // 點擊整張卡片（包括標題、票數、空白處）就百分之百算進 Firebase 投票！
+    el.onclick = () => {
+        if (!window.fb) return;
+        window.fb.runTransaction(window.fb.ref(window.fb.db, 'global_votes/' + video.id), (curr) => (curr || 0) + 1);
+        el.style.transform = "scale(0.95)";
+        setTimeout(() => { el.style.transform = "scale(1)"; setupMatch(); }, 150);
+    };
 }
 
 function initCloudSync() {

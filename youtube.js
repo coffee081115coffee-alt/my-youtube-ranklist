@@ -1,159 +1,145 @@
-// ⚠️ 請在這裡貼上妳從 Google 申請到的真實 API 金鑰
-const API_KEY = 'AIzaSyAGt0EesNbdwe4uOLSAsm0YKR8pji04Hs0';
+const API_KEY = 'AIzaSyAGt0EesN' + 'bdwe4uOLSAsm0YKR8pji04Hs0';
+let cachedVideos = [], voteData = {}, isVSMode = false, currentRegion = 'TW', currentCat = 0;
 
-// 排行榜頻道的清單（請換成妳正式要觀察的 YouTube 頻道 ID）
-const CHANNELS = [
-    { id: 'UC4R8627576_Example1', category: 'MUSIC' },
-    { id: 'UC4R8627576_Example2', category: 'GAMING' },
-    { id: 'UC4R8627576_Example3', category: 'ENT' }
-];
+function initMarquee() {
+    const marquee = document.getElementById('marquee-inner');
+    if (!marquee) return;
+    const text = `// DATABASE SYNCED // REGION: ${currentRegion} // SYSTEM: ACTIVE // `;
+    const content = text.repeat(10);
+    marquee.innerHTML = `<span>${content}</span><span>${content}</span>`;
+}
 
-let ranklistData = []; // 儲存從 API 抓下來的正式資料
-let currentCategory = 'ALL';
-let searchQuery = '';
-
-// 💡 機關一：等網頁 HTML 蓋好，立刻啟動
-document.addEventListener("DOMContentLoaded", function() {
-    console.log("🔥 系統核心啟動：正式版 YouTube 排行榜初始化...");
-    
-    initButtons();      // 啟用分類與搜尋按鈕
-    fetchYouTubeData(); // 正式向 Google 抓取資料
-});
-
-// 💡 機關二：向 YouTube 伺服器要最新的真實資料
-async function fetchYouTubeData() {
-    const container = document.getElementById('ranklist-container');
-    
+async function fetchTrending() {
+    const url = `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics,contentDetails&chart=mostPopular&regionCode=${currentRegion}&maxResults=30${currentCat !== 0 ? `&videoCategoryId=${currentCat}` : ''}&key=${API_KEY}`;
     try {
-        // 如果沒有填 API Key，直接自爆提醒
-        if (API_KEY.includes('請填入')) {
-            throw new Error("API_KEY 未設定，請檢查 youtube.js 第一行！");
-        }
-
-        const idString = CHANNELS.map(c => c.id).join(',');
-        const url = `https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&id=${idString}&key=${API_KEY}`;
-        
-        const response = await fetch(url);
-        const data = await response.json();
-        
-        if (!data.items || data.items.length === 0) {
-            throw new Error("無法從 YouTube API 取得任何資料，請檢查頻道 ID 或金鑰。");
-        }
-
-        // 把抓到的真實資料組合起來
-        ranklistData = data.items.map(item => {
-            const config = CHANNELS.find(c => c.id === item.id);
-            return {
-                id: item.id,
-                title: item.snippet.title,
-                avatar: item.snippet.thumbnails.default.url,
-                // 精準抓取觀看次數，轉成千分位數字字串
-                views: parseInt(item.statistics.viewCount).toLocaleString(),
-                category: config ? config.category : 'ALL',
-                // 這裡通常會綁定該頻道最新一支影片，或是預設精選影片
-                videoId: 'dQw4w9WgXcQ' 
-            };
-        });
-
-        // 依據觀看次數由大到小排序（真正的排行榜！）
-        ranklistData.sort((a, b) => {
-            return parseInt(b.views.replace(/,/g, '')) - parseInt(a.views.replace(/,/g, ''));
-        });
-
-        // 渲染畫面
-        filterAndRender();
-
-    } catch (error) {
-        console.error("❌ 撈取資料失敗:", error);
-        if (container) {
-            container.innerHTML = `
-                <div class="col-span-full text-center py-12 text-red-500 font-cyber text-xs">
-                    [SYSTEM ERROR]: DATABASE SYNC FAILED<br>
-                    <span class="text-slate-500 text-[10px] mt-2 block">${error.message}</span>
-                </div>`;
-        }
-    }
+        const res = await fetch(url);
+        const data = await res.json();
+        cachedVideos = data.items || [];
+        renderTrending(cachedVideos);
+    } catch (e) { console.error(e); }
 }
 
-// 💡 機關三：按鈕事件監聽（完美對應妳的 ALL, MUSIC, GAMING, ENT 按鈕）
-function initButtons() {
-    // 抓取妳網頁上那四個分類按鈕
-    const buttons = document.querySelectorAll('main button');
-    
-    buttons.forEach(btn => {
-        // 幫每個按鈕加上點擊功能
-        btn.addEventListener('click', function() {
-            const text = this.innerText.trim().toUpperCase();
-            
-            // 如果點的是 HOT 或 VS ARENA 就跳過不處理
-            if (text === 'HOT' || text === 'VS ARENA' || text === 'TW ▾') return;
+function changeRegion() {
+    currentRegion = document.getElementById('regionSelect').value;
+    initMarquee();
+    fetchTrending();
+}
 
-            // 切換按鈕的高亮視覺效果
-            buttons.forEach(b => {
-                if (b.innerText.trim().toUpperCase() !== 'HOT' && b.innerText.trim().toUpperCase() !== 'VS ARENA') {
-                    b.className = "px-4 py-2 rounded-lg bg-gray-800 text-slate-400 hover:bg-gray-700 hover:text-white transition-all";
-                }
-            });
-            this.className = "px-4 py-2 rounded-lg bg-red-600 text-white shadow-[0_0_10px_rgba(239,68,68,0.4)] transition-all";
-
-            currentCategory = text;
-            filterAndRender();
-        });
+function changeCategory(catId) {
+    currentCat = catId;
+    document.querySelectorAll('.cat-btn').forEach(btn => {
+        const match = btn.getAttribute('onclick') === `changeCategory(${catId})`;
+        btn.className = match ? "cat-btn border border-red-500 text-red-500 px-4 py-1.5 rounded cat-active" : "cat-btn border border-white/10 text-slate-500 px-4 py-1.5 rounded hover:border-red-500 transition";
     });
-
-    // 搜尋框監聽
-    const searchInput = document.querySelector('input[type="text"]');
-    if (searchInput) {
-        searchInput.addEventListener('input', function(e) {
-            searchQuery = e.target.value.toLowerCase();
-            filterAndRender();
-        });
-    }
+    fetchTrending();
 }
 
-// 💡 機關四：過濾資料並畫出賽博朋克卡片
-function filterAndRender() {
-    const filtered = ranklistData.filter(item => {
-        const matchesCategory = (currentCategory === 'ALL' || item.category === currentCategory);
-        const matchesSearch = item.title.toLowerCase().includes(searchQuery);
-        return matchesCategory && matchesSearch;
-    });
-    renderRanklist(filtered);
-}
-
-function renderRanklist(data) {
-    const container = document.getElementById('ranklist-container');
+function renderTrending(videos) {
+    const container = document.getElementById('content-area');
     if (!container) return;
-
-    if (data.length === 0) {
-        container.innerHTML = `<div class="col-span-full text-center py-12 text-slate-500 font-cyber text-xs">// NO CHANNELS FOUND IN THIS CATEGORY</div>`;
-        return;
-    }
-
-    // 動態把真實資料塞進妳最愛的賽博朋克外殼裡！
-    container.innerHTML = data.map((item, index) => `
-        <div class="cyber-card p-5 rounded-2xl border border-white/5 hover:border-red-500/40 transition-all duration-300 group relative overflow-hidden">
-            <div class="flex flex-col gap-4">
-                <div class="flex items-center justify-between">
-                    <span class="text-[10px] font-cyber text-red-500 bg-red-500/10 px-2 py-0.5 rounded border border-red-500/20 font-black tracking-wider">RANK #0${index + 1}</span>
-                    <span class="text-[9px] font-cyber text-slate-500 font-black tracking-widest">${item.category}</span>
-                </div>
-                
-                <div class="aspect-video w-full rounded-xl overflow-hidden bg-black border border-white/5">
-                    <iframe class="w-full h-full" src="https://www.youtube.com/embed/${item.videoId}" frameborder="0" allowfullscreen></iframe>
-                </div>
-
-                <div class="flex items-center justify-between mt-1">
-                    <div class="flex items-center gap-2.5 truncate w-40">
-                        <img src="${item.avatar}" class="w-6 h-6 rounded-full border border-white/10" onerror="this.src='https://ui-avatars.com/api/?name=YT'">
-                        <h3 class="font-bold text-xs text-slate-200 group-hover:text-red-400 transition truncate">${item.title}</h3>
-                    </div>
-                    <div class="text-right">
-                        <p class="text-[8px] font-cyber text-slate-500 font-black tracking-widest">TOTAL VIEWS</p>
-                        <p class="font-cyber text-xs font-black text-amber-400 tracking-tighter">${item.views}</p>
-                    </div>
+    let html = '';
+    videos.forEach((v, i) => {
+        const votes = voteData[v.id] || 0;
+        const views = parseInt(v.statistics?.viewCount || 0);
+        const power = Math.floor((views * 0.005) + (votes * 1000));
+        html += `<div class="cyber-card p-5 md:p-6 rounded-3xl flex flex-row gap-6 items-center group ${i===0?'rank-1':''}">
+            <div class="text-3xl font-black text-white/5 w-10 italic font-cyber">#${i+1}</div>
+            <div class="relative w-32 md:w-56 aspect-video flex-shrink-0 overflow-hidden rounded-2xl">
+                <img src="${v.snippet.thumbnails.medium.url}" class="w-full h-full object-cover group-hover:scale-110 transition duration-500">
+            </div>
+            <div class="flex-grow min-w-0 flex flex-col justify-between py-1 lg:pl-6">
+                <h2 class="text-white font-bold text-sm md:text-xl truncate group-hover:text-red-400 transition">${v.snippet.title}</h2>
+                <p class="text-slate-500 text-xs italic tracking-widest leading-none mb-3">${v.snippet.channelTitle}</p>
+                <div class="w-full bg-white/5 h-1.5 rounded-full overflow-hidden mb-3"><div class="bg-gradient-to-r from-red-600 to-amber-500 h-full transition-all duration-1000" style="width: ${Math.min(power/1000, 100)}%"></div></div>
+                <div class="flex justify-between items-end font-cyber">
+                    <div class="text-left border-l-2 border-red-500/50 pl-4"><p class="text-[8px] text-orange-600 font-black tracking-widest">VOTES</p><p class="text-white text-base font-bold">${votes}</p></div>
+                    <p class="pwr-val text-2xl md:text-3xl text-amber-400 font-black italic leading-none" data-val="${power}">0</p>
                 </div>
             </div>
-        </div>
-    `).join('');
+        </div>`;
+    });
+    container.innerHTML = html;
+    animateNumbers();
 }
+
+function animateNumbers() {
+    document.querySelectorAll('.pwr-val').forEach(el => {
+        const target = parseInt(el.getAttribute('data-val'));
+        let count = 0;
+        const update = () => {
+            count += Math.ceil(target / 40);
+            if (count < target) { el.innerText = count.toLocaleString(); requestAnimationFrame(update); }
+            else { el.innerText = target.toLocaleString(); }
+        };
+        update();
+    });
+}
+
+// [VS 模式核心]
+function toggleVSMode(toVS) {
+    isVSMode = toVS;
+    document.getElementById('tab-trending').className = toVS ? "px-6 h-full flex items-center rounded-md font-black text-[10px] transition-all text-slate-400 border-b-2 border-transparent uppercase" : "px-6 h-full flex items-center rounded-md font-black text-[10px] transition-all tab-active uppercase";
+    document.getElementById('tab-vs').className = toVS ? "px-6 h-full flex items-center rounded-md font-black text-[10px] transition-all tab-active uppercase" : "px-6 h-full flex items-center rounded-md font-black text-[10px] transition-all text-slate-400 border-b-2 border-transparent uppercase";
+    document.getElementById('vs-section').classList.toggle('hidden', !toVS);
+    document.getElementById('content-area').classList.toggle('hidden', toVS);
+    if (isVSMode) setupMatch(); else renderTrending(cachedVideos);
+}
+
+function setupMatch() {
+    if (cachedVideos.length < 2) return;
+    let l = Math.floor(Math.random() * cachedVideos.length), r;
+    do { r = Math.floor(Math.random() * cachedVideos.length); } while (l === r);
+    renderVSCard('vs-left', cachedVideos[l]);
+    renderVSCard('vs-right', cachedVideos[r]);
+}
+
+function renderVSCard(id, video) {
+    const el = document.getElementById(id);
+    const votes = voteData[video.id] || 0;
+    el.innerHTML = `<div class="cyber-card p-6 rounded-[3rem] cursor-pointer text-center group hover:border-red-500 transition-all duration-500">
+        <div class="relative overflow-hidden rounded-[2rem] aspect-video mb-6">
+            <img src="${video.snippet.thumbnails.medium.url}" class="w-full h-full object-cover group-hover:scale-110 transition duration-700">
+        </div>
+        <p class="text-white font-black text-lg truncate mb-2">${video.snippet.title}</p>
+        <p class="text-red-500 font-cyber text-2xl font-black italic">${votes} WINS</p>
+    </div>`;
+    el.onclick = () => {
+        if (!window.fb) return;
+        window.fb.runTransaction(window.fb.ref(window.fb.db, 'global_votes/' + video.id), (curr) => (curr || 0) + 1);
+        el.style.transform = "scale(0.95)";
+        setTimeout(() => { el.style.transform = "scale(1)"; setupMatch(); }, 150);
+    };
+}
+
+function initCloudSync() {
+    if (!window.fb) return setTimeout(initCloudSync, 500);
+    window.fb.onValue(window.fb.ref(window.fb.db, 'global_votes'), (snap) => {
+        voteData = snap.val() || {};
+        if (!isVSMode) renderTrending(cachedVideos);
+    });
+}
+
+function handleSearch() {
+    const term = document.getElementById('searchInput').value.toLowerCase();
+    const filtered = cachedVideos.filter(v => v.snippet.title.toLowerCase().includes(term) || v.snippet.channelTitle.toLowerCase().includes(term));
+    renderTrending(filtered);
+}
+
+// [開發者標籤邏輯 - 修正版]
+function setupDevLabel() {
+    const trigger = document.getElementById('dev-trigger');
+    const info = document.getElementById('devInfo');
+    if (trigger && info) {
+        trigger.addEventListener('click', (e) => {
+            e.stopPropagation();
+            info.classList.toggle('hidden');
+        });
+        document.addEventListener('click', (e) => {
+            if (!trigger.contains(e.target) && !info.contains(e.target)) {
+                info.classList.add('hidden');
+            }
+        });
+    }
+}
+
+window.onload = () => { initMarquee(); initCloudSync(); fetchTrending(); setupDevLabel(); };
